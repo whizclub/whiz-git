@@ -1,0 +1,360 @@
+// Development schema with SQLite
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Content Models (No user authentication required)
+
+model ExamNotification {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  organization  String
+  category      String
+  examName      String?
+  website       String?
+  totalPosts    Int?
+  eligibility   String?
+  applicationFee String?
+  lastDate      DateTime?
+  examDate      DateTime?
+  salary        String?
+  location      String?
+  priority      String   @default("MEDIUM")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("exam_notifications")
+}
+
+model Job {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  location    String
+  salary      String
+  type        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       String
+  duration    String?
+  level       String   @default("Beginner")
+  category    String?
+  thumbnail   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("courses")
+}
+
+model PreviousYearPaper {
+  id          String   @id @default(cuid())
+  courseId    String
+  courseName  String
+  year        Int
+  title       String
+  description String?
+  pdfUrl      String?
+  examDate    DateTime?
+  totalMarks  Int?
+  duration    Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  questions   Question[]
+
+  @@map("previous_year_papers")
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  paperId     String
+  paper       PreviousYearPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  questionNo  Int
+  subject     String?
+  question    String
+  optionA     String?
+  optionB     String?
+  optionC     String?
+  optionD     String?
+  correctAnswer String?
+  explanation String?
+  marks       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("questions")
+}
+
+// Admin and User Management Models
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String?  // Optional for OAuth users
+  name          String
+  phone         String?
+  district      String?  // Andhra Pradesh district
+  image         String?  // For Google profile picture
+  emailVerified DateTime?
+  isActive      Boolean  @default(true)
+  role          String   @default("USER")
+  hasPaid       Boolean  @default(false) // Payment status for ₹9 access fee
+  paymentDate   DateTime? // When user paid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  payments      Payment[]
+  testAttempts  TestAttempt[]
+  certificates  Certificate[]
+  studyPlans    StudyPlan[]
+  notifications UserNotification[]
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+// NextAuth Models for OAuth
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("password_resets")
+}
+
+// Payment Model for PhonePe Gateway (Voluntary Donations)
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount            Float    @default(99.00) // ₹99 voluntary donation
+  status            String   @default("PENDING") // PENDING, SUCCESS, FAILED, REFUNDED
+  transactionId     String?  @unique // PhonePe transaction ID
+  merchantTransactionId String @unique // Our reference ID
+  paymentMethod     String?  // UPI, Card, NetBanking, Wallet
+  phonepeResponse   String?  // Store PhonePe response
+  refundId          String?  // Refund transaction ID if refunded
+  refundReason      String?  // Reason for refund
+  refundDate        DateTime? // When refund was processed
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("payments")
+}
+
+// MCQ Test Models
+
+model MCQTest {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String   // AP Constable, Sub-Inspector, etc.
+  duration    Int      // in minutes
+  totalMarks  Int
+  passingMarks Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  questions   MCQQuestion[]
+  attempts    TestAttempt[]
+
+  @@map("mcq_tests")
+}
+
+model MCQQuestion {
+  id          String   @id @default(cuid())
+  testId      String
+  test        MCQTest  @relation(fields: [testId], references: [id], onDelete: Cascade)
+  questionNo  Int
+  subject     String?  // General Studies, Maths, Reasoning, etc.
+  question    String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  correctAnswer String // A, B, C, or D
+  explanation String?
+  marks       Int      @default(1)
+  negativeMarks Float  @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("mcq_questions")
+}
+
+model TestAttempt {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testId        String
+  test          MCQTest  @relation(fields: [testId], references: [id], onDelete: Cascade)
+  score         Float
+  totalQuestions Int
+  correctAnswers Int
+  wrongAnswers   Int
+  unattempted    Int
+  timeTaken     Int      // in seconds
+  isPassed      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@map("test_attempts")
+}
+
+// Certificate Vault
+
+model Certificate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  issuer      String
+  issueDate   DateTime
+  fileUrl     String?
+  fileType    String?  // PDF, Image, etc.
+  category    String?  // Course, Test, Achievement, etc.
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("certificates")
+}
+
+// Study Plan System
+
+model StudyPlan {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  category    String?  // AP Constable, Sub-Inspector, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       StudyTask[]
+
+  @@map("study_plans")
+}
+
+model StudyTask {
+  id          String    @id @default(cuid())
+  planId      String
+  plan        StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  subject     String?
+  taskDate    DateTime
+  duration    Int       // in minutes
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  priority    String    @default("MEDIUM") // HIGH, MEDIUM, LOW
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("study_tasks")
+}
+
+// Notification System
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  targetType  String   @default("ALL") // ALL, COURSE, USER
+  targetId    String?  // courseId or userId
+  category    String?  // Announcement, Update, Reminder, etc.
+  priority    String   @default("NORMAL") // HIGH, NORMAL, LOW
+  isActive    Boolean  @default(true)
+  createdBy   String   // Admin ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userNotifications UserNotification[]
+
+  @@map("notifications")
+}
+
+model UserNotification {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@map("user_notifications")
+}
+
